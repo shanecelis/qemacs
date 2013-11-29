@@ -78,6 +78,8 @@ int find_file_next(FindFileState *s, char *filename, int filename_size_max);
 void find_file_close(FindFileState *s);
 void canonize_path(char *buf, int buf_size, const char *path);
 void canonize_absolute_path(char *buf, int buf_size, const char *path1);
+int tilde_expand(char *buf, int buf_size, const char *path1);
+int tilde_compress(char *buf, int buf_size, const char *path1);
 const char *qe_basename(const char *filename);
 const char *pathname(char *buf, int buf_size, const char *filename);
 
@@ -578,8 +580,12 @@ extern EditBufferDataType raw_data_type;
 #undef __attribute__ 
 
 /* same method as the linux kernel... */
-#define __init_call	__attribute__ ((unused,__section__ (".initcall.init")))
-#define __exit_call	__attribute__ ((unused,__section__ (".exitcall.exit")))
+/* #define __init_call	__attribute__ ((unused,__section__, (".initcall.init"))) */
+/* #define __exit_call	__attribute__ ((unused,__section__, (".exitcall.exit"))) */
+
+#define __init_call	__attribute__ ((unused,__section__ (".initcallseg,.initcall.init")))
+#define __exit_call	__attribute__ ((unused,__section__ (".exitcallseg,.exitcall.exit")))
+
 
 #define qe_module_init(fn) \
 	int (*__initcall_##fn)(void) __init_call = fn

@@ -221,7 +221,7 @@ static int is_abs_path(const char *path)
 }
 
 /* canonize the path and make it absolute */
-void canonize_absolute_path(char *buf, int buf_size, const char *path1)
+void canonize_absolute_path_old(char *buf, int buf_size, const char *path1)
 {
     char path[1024];
 
@@ -238,6 +238,122 @@ void canonize_absolute_path(char *buf, int buf_size, const char *path1)
     }
     canonize_path(buf, buf_size, path);
 }
+
+// SEC BEGIN taken from cgordon/util.c
+
+/* Remove trailing slash from path, except for / directory */
+int remove_slash(char *buf)
+{
+    int len;
+
+    len = strlen(buf);
+    if (len > 1 && buf[len - 1] == '/') {
+        buf[--len] = '\0';
+    }
+    return len;
+}
+
+
+/* Append trailing slash to path if none there already */
+int append_slash(char *buf, int buf_size)
+{
+    int len;
+
+    len = strlen(buf);
+    if (len > 0 && buf[len - 1] != '/' && len + 1 < buf_size) {
+        buf[len++] = '/';
+        buf[len] = '\0';
+    }
+    return len;
+}
+
+
+char *makepath(char *buf, int buf_size, const char *path,
+               const char *filename)
+{
+    pstrcpy(buf, buf_size, path);
+    append_slash(buf, buf_size);
+    return pstrcat(buf, buf_size, filename);
+}
+
+
+
+/* canonicalize the path and make it absolute */
+void canonize_absolute_path(char *buf, int buf_size, const char *path1)
+{
+    char cwd[MAX_FILENAME_SIZE];
+    char path[MAX_FILENAME_SIZE];
+    
+    if (!is_abs_path(path1)) {
+        if (*path1 == '~') {
+           tilde_expand(path, MAX_FILENAME_SIZE, path1);
+           path1 = path;
+        } else {
+            /* CG: not sufficient for windows drives */
+            /* CG: should test result */
+            getcwd(cwd, sizeof(cwd));
+#ifdef CONFIG_WIN32
+            path_win_to_unix(cwd);
+#endif
+            makepath(path, sizeof(path), cwd, path1);
+            path1 = path;
+        }
+    }
+    canonize_path(buf, buf_size, path1);
+}
+
+/* If the path has the home directory in it, replace it with a tilde. 
+ Returns 1 if there was a tilde that was compressed, 0 otherwise. */
+int tilde_compress(char *buf, int buf_size, const char *path1)
+{
+    char *homedir;
+    
+    homedir = getenv("HOME");
+    if (strncmp(homedir, path1, strlen(homedir)) == 0) {
+      pstrcpy(buf, buf_size, "~");
+      pstrcat(buf, buf_size, path1 + strlen(homedir));
+      return 1;
+    } else {
+      pstrcpy(buf, buf_size, path1);
+      return 0;
+    }
+    //canonize_path(buf, buf_size, path);
+}
+
+/* If the path has the home directory in it, replace it with a tilde. */
+int tilde_expand(char *buf, int buf_size, const char *path1)
+{
+    char path[MAX_FILENAME_SIZE];
+    char *homedir;
+    int ret = 0;
+    if (!is_abs_path(path1)) {
+        if (*path1 == '~') {
+            if (path1[1] == '\0' || path1[1] == '/') {
+                homedir = getenv("HOME");
+                if (homedir) {
+                    pstrcpy(path, sizeof(path), homedir);
+#ifdef CONFIG_WIN32
+                    path_win_to_unix(path);
+#endif
+                    remove_slash(path);
+                    pstrcat(path, sizeof(path), path1 + 1);
+                    path1 = path;
+                }
+            } else {
+                /* CG: should get info from getpwnam */
+                pstrcpy(path, sizeof(path), "/home/");
+                pstrcat(path, sizeof(path), path1 + 1);
+                path1 = path;
+            }
+            ret = 1;
+        }
+    }
+    pstrcpy(buf, buf_size, path1);
+    return ret;
+}
+
+
+// SEC END taken from cgordon/util.c
 
 /* last filename in a path */
 const char *qe_basename(const char *filename)

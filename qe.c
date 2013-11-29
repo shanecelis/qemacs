@@ -3748,15 +3748,18 @@ void edit_close(EditState *s)
 }
 
 /* XXX: buffer overflows */
-void file_completion(StringArray *cs, const char *input)
+void file_completion(StringArray *cs, const char *input1)
 {
     FindFileState *ffs;
     char path[1024];
     char file[1024];
     char filename[1024];
+    char input[1024];
+    char tmp[1024];
     const char *p;
     int input_path_len;
-    
+    int expanded = tilde_expand(input, sizeof(input), input1);
+
     p = strrchr(input, '/'); 
     if (!p) {
         input_path_len = 0;
@@ -3783,7 +3786,12 @@ void file_completion(StringArray *cs, const char *input)
         stat(file, &sb);
         if(S_ISDIR(sb.st_mode))
             strcat(file, "/");
-        add_string(cs, file);
+        if (expanded) {
+            tilde_compress(tmp, sizeof(tmp), file);
+            add_string(cs, tmp);
+        } else {
+            add_string(cs, file);
+        }
     }
 
     find_file_close(ffs);
@@ -4322,13 +4330,16 @@ static void get_default_path(EditState *s, char *buf, int buf_size)
 {
     EditBuffer *b = s->b;
     char buf1[1024];
+    char buf2[1024];
     const char *filename;
 
     if ((b->flags & BF_SYSTEM) || b->name[0] == '*') {
         canonize_absolute_path(buf1, sizeof(buf1), "a");
-        filename = buf1;
+        tilde_compress(buf2, sizeof(buf2), buf1);
+        filename = buf2;
     } else {
-        filename = s->b->filename;
+        tilde_compress(buf2, sizeof(buf2), s->b->filename);
+        filename = buf2;
     }
     pathname(buf, buf_size, filename);
 }
